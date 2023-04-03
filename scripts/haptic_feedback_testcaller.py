@@ -5,6 +5,8 @@ import rospy
 from std_msgs.msg import String
 from sensor_msgs.msg import Imu
 
+MSG_PER_SECOND = 50
+
 DRV_MSG_LEN = 63  # space for the zero byte at the end for the client
 
 def callback_imu_data(msg):
@@ -23,10 +25,10 @@ def create_lra_data_msg(arr):
 
 
 def haptic_feedback_tester():
-    pub = rospy.Publisher('/haptic_feedback/lra_motor_array', String, queue_size=10)
+    pub = rospy.Publisher('/haptic_feedback/lra_motor_array', String, queue_size=MSG_PER_SECOND)
     sub = rospy.Subscriber('/haptic_feedback/imu_data', Imu, callback_imu_data)
     rospy.init_node('haptic_feedback_tester', anonymous=True)
-    rate = rospy.Rate(50)  # 20hz
+    rate = rospy.Rate(MSG_PER_SECOND)  # 20hz
     while not rospy.is_shutdown():
         try:
             msg = create_lra_data_msg([random.randint(0, 255) for _ in range(5)])

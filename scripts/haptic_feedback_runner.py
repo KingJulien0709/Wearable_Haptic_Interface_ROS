@@ -10,18 +10,17 @@ import socket
 ROS_MASTER_URI = "http://192.168.178.123:11311"
 IP_ADDRESS = "192.168.178.31"
 PORT = 5000
-
+MSG_PER_SECOND = 50
 IMU_MSG_LEN = 128
 
 
 def create_imu_msg_from_json(msg):
     try:
-        string_msg = str(msg)
-        data = json.loads(string_msg[string_msg.find("{"):string_msg.find("}") + 1])
+        string_msg = str(msg) # convert the byte array to a string
+        data = json.loads(string_msg[string_msg.find("{"):string_msg.find("}") + 1])  # remove the b' and ' from the string and convert it to a json object
         rospy.loginfo("Received data: %s", data)
-        # quaternion = quaternion_from_euler(math.radians(data["r"]), math.radians(data["p"]), math.radians(data["h"]), 'sxyz')
-        imu_msg = Imu()
-        imu_msg.header.frame_id = "imu_frame"
+        imu_msg = Imu()  # create a new imu message
+        imu_msg.header.frame_id = "imu_frame"  # set the frame id, which is used by the tf2 broadcaster
         imu_msg.linear_acceleration.x = data["x"]
         imu_msg.linear_acceleration.y = data["y"]
         imu_msg.linear_acceleration.z = data["z"]
@@ -29,7 +28,7 @@ def create_imu_msg_from_json(msg):
         imu_msg.orientation.y = data["yq"]
         imu_msg.orientation.z = data["zq"]
         imu_msg.orientation.w = data["w"]
-        imu_msg.header.stamp = rospy.Time.now()
+        imu_msg.header.stamp = rospy.Time.now()  # the timestamp will have a delay compared to the real time due to the delay of the socket communication
         return imu_msg
     except Exception as e:
         rospy.logerr(e)
@@ -41,16 +40,14 @@ class HapticFeedbackNode:
         self.socket_client = None
         self.active = True
         rospy.init_node('haptic_feedback', anonymous=True)
-        self.pub = rospy.Publisher('/haptic_feedback/imu_data', Imu, queue_size=20)
+        self.pub = rospy.Publisher('/haptic_feedback/imu_data', Imu, queue_size=MSG_PER_SECOND)
         self.sub = rospy.Subscriber('/haptic_feedback/lra_motor_array', String, self.sub_callback_lra_data)
-
         self.socket_master = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket_master.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket_master.bind((IP_ADDRESS, PORT))
         self.socket_master.listen(1)
         rospy.loginfo("Waiting for connection")
-
-        self.rate = rospy.Rate(50)  # 10hz
+        self.rate = rospy.Rate(MSG_PER_SECOND)  # 10hz
 
     def sub_callback_lra_data(self, msg):
         try:
@@ -94,7 +91,7 @@ class HapticFeedbackNode:
                 self.socket_client.close()  # will be executed if the while loop is exited due to an error
                 self.socket_client = None  # will free up the socket for a new connection
             except Exception as e:
-                print(e)
+                rospy.logerr(e)
                 if self.socket_client is not None:
                     self.socket_client.close()
                     self.socket_client = None
@@ -105,5 +102,6 @@ if __name__ == '__main__':
     try:
         node = HapticFeedbackNode()
         node.run()
-    except rospy.ROSInterruptException:
+    except rospy.ROSInterruptException as e_outer:
+        rospy.logerr(e_outer)
         pass
